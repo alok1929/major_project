@@ -45,12 +45,27 @@ async def trigger_llm_feedback(person_id: int, session, websocket, final: bool =
             person_id=person_id,
         )
         
+        # Get structured JSON feedback (already parsed from LLM JSON response)
+        feedback_json = result.get('feedback_json', {})
+        
+        # Clean up feedback_json - remove person_id and raw_feedback if present
+        # (person_id is already in the message, raw_feedback not needed for frontend)
+        clean_feedback_json = {
+            'session_summary': feedback_json.get('session_summary', ''),
+            'what_went_well': feedback_json.get('what_went_well', ''),
+            'areas_to_improve': feedback_json.get('areas_to_improve', ''),
+            'tips_for_next_session': feedback_json.get('tips_for_next_session', ''),
+            'focus_point': feedback_json.get('focus_point', '')
+        }
+        
         feedback_msg = {
             'type': 'llm_feedback',
             'person_id': person_id,
             'is_final': final,
-            'feedback': result.get('feedback_text', 'No feedback available'),
-            'feedback_json': result.get('feedback_json', {})
+            'feedback_type': 'final' if final else 'periodic',
+            'rep_count': total_reps,
+            'feedback': result.get('feedback_text', 'No feedback available'),  # Formatted text for fallback
+            'feedback_json': clean_feedback_json  # Clean structured JSON for frontend
         }
         await websocket.send_json(feedback_msg)
         

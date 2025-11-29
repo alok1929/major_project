@@ -221,6 +221,7 @@ Your role is to:
 - Use simple, patient-friendly language (avoid overly technical jargon)
 - Be supportive while being honest about areas needing improvement
 - Prioritize safety - if form is consistently poor, recommend consulting their therapist
+- ALWAYS respond with valid JSON format only (no markdown, no code blocks, just pure JSON)
 
 EXERCISE CONTEXT:
 - Exercise: Shoulder Raise (arm elevation for shoulder rehabilitation)
@@ -245,31 +246,40 @@ KEY METRICS TO CONSIDER:
 - phase_correctness: 1.0 = perfect, lower values indicate issues in that phase
 - fatigue_indicator: Shows if quality declined over reps (consistent/improved/slight_decline/significant_decline)
 - common_error_phase: The movement phase where most mistakes occurred
-- error_severity: none/mild/moderate/severe for each phase"""
+- error_severity: none/mild/moderate/severe for each phase
+
+OUTPUT FORMAT:
+You must respond with ONLY a valid JSON object containing these exact keys:
+- session_summary (string)
+- what_went_well (string)
+- areas_to_improve (string)
+- tips_for_next_session (string)
+- focus_point (string)
+
+Do not include any markdown formatting, code blocks, or explanatory text. Return pure JSON only."""
 
     user_prompt = f"""Please analyze this exercise session and provide personalized feedback for the patient:
 ```json
 {json.dumps(exercise_data_dict, indent=2)}
 ```
 
-Provide your feedback in this exact format:
+You MUST respond with ONLY a valid JSON object in this exact format (no markdown, no extra text, just pure JSON):
 
-## 📊 Session Summary
-(Brief overview: how many reps completed out of target, overall form rating, whether exercise was completed)
+{{
+  "session_summary": "Brief overview: how many reps completed out of target, overall form rating, whether exercise was completed. Keep it concise (2-3 sentences).",
+  "what_went_well": "2-3 specific positive points based on the actual data - mention specific metrics like peak angles, consistency, or phases that were strong. Be encouraging! (3-4 sentences)",
+  "areas_to_improve": "2-3 specific issues found in the data. Reference actual numbers like phase correctness scores, error phases, or specific rep issues. Be constructive, not critical. If form was mostly good, acknowledge that while noting minor improvements. (3-4 sentences)",
+  "tips_for_next_session": "2-3 actionable tips they can apply immediately. Make these specific to their identified issues - e.g., if descent was the problem, give tips for controlled lowering. (3-4 sentences)",
+  "focus_point": "ONE single, clear thing to focus on in their next session. Keep it simple and memorable - something they can repeat to themselves while exercising. (1-2 sentences)"
+}}
 
-## ✅ What You Did Well
-(2-3 specific positive points based on the actual data - mention specific metrics like peak angles, consistency, or phases that were strong. Be encouraging!)
-
-## ⚠️ Areas to Improve
-(2-3 specific issues found in the data. Reference actual numbers like phase correctness scores, error phases, or specific rep issues. Be constructive, not critical. If form was mostly good, acknowledge that while noting minor improvements.)
-
-## 💡 Tips for Next Session
-(2-3 actionable tips they can apply immediately. Make these specific to their identified issues - e.g., if descent was the problem, give tips for controlled lowering.)
-
-## 🎯 Focus Point
-(ONE single, clear thing to focus on in their next session. Keep it simple and memorable - something they can repeat to themselves while exercising.)
-
-Keep the total response between 250-400 words. Use a warm, encouraging tone throughout - remember this is for rehabilitation patients who may be frustrated or in pain."""
+IMPORTANT:
+- Return ONLY the JSON object, no markdown formatting, no code blocks, no explanations
+- Each field should be a string with 2-4 sentences
+- Total word count across all fields should be 250-400 words
+- Use a warm, encouraging tone throughout
+- Remember this is for rehabilitation patients who may be frustrated or in pain
+- Be specific with metrics and data references"""
 
     try:
         response = await client.chat.completions.create(
@@ -279,22 +289,51 @@ Keep the total response between 250-400 words. Use a warm, encouraging tone thro
                 {"role": "user", "content": user_prompt}
             ],
             max_tokens=800,
-            temperature=0.7
+            temperature=0.7,
+            response_format={"type": "json_object"}  # Force JSON response
         )
 
-        feedback_text = response.choices[0].message.content
+        feedback_content = response.choices[0].message.content
         
-        # Parse feedback into structured JSON
+        # Parse JSON response directly
+        try:
+            feedback_json_raw = json.loads(feedback_content)
+        except json.JSONDecodeError as e:
+            # Fallback: try to extract JSON from markdown code blocks if LLM wrapped it
+            import re
+            json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', feedback_content, re.DOTALL)
+            if json_match:
+                feedback_json_raw = json.loads(json_match.group(1))
+            else:
+                # Last resort: try parsing the entire content as JSON
+                feedback_json_raw = json.loads(feedback_content)
+        
+        # Build structured feedback JSON with all required fields
         feedback_json = {
             "person_id": person_id,
-            "feedback_text": feedback_text,
-            "session_summary": extract_section(feedback_text, "Session Summary"),
-            "what_went_well": extract_section(feedback_text, "What You Did Well"),
-            "areas_to_improve": extract_section(feedback_text, "Areas to Improve"),
-            "tips_for_next_session": extract_section(feedback_text, "Tips for Next Session"),
-            "focus_point": extract_section(feedback_text, "Focus Point"),
-            "raw_feedback": feedback_text
+            "session_summary": feedback_json_raw.get("session_summary", ""),
+            "what_went_well": feedback_json_raw.get("what_went_well", ""),
+            "areas_to_improve": feedback_json_raw.get("areas_to_improve", ""),
+            "tips_for_next_session": feedback_json_raw.get("tips_for_next_session", ""),
+            "focus_point": feedback_json_raw.get("focus_point", ""),
+            "raw_feedback": feedback_content  # Keep original for reference
         }
+        
+        # Generate formatted text version for backward compatibility
+        feedback_text = f"""## 📊 Session Summary
+{feedback_json["session_summary"]}
+
+## ✅ What You Did Well
+{feedback_json["what_went_well"]}
+
+## ⚠️ Areas to Improve
+{feedback_json["areas_to_improve"]}
+
+## 💡 Tips for Next Session
+{feedback_json["tips_for_next_session"]}
+
+## 🎯 Focus Point
+{feedback_json["focus_point"]}"""
         
         # Save JSON file
         if person_id is not None:

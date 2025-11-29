@@ -4,3 +4,10 @@ numpy
 scikit-learn
 openai
 python-dotenv
+fastapi
+uvicorn
+websockets
+numpy
+pandas
+joblib
+asyncio

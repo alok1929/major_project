@@ -1,0 +1,9 @@
+/.DS_Store
+/venvv
+/rehab24_6
+
+.env*
+exercise_data.json
+person_0_feedback.json
+person_1_feedback.json
+person_2_feedback.json

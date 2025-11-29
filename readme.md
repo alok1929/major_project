@@ -23,13 +23,14 @@
 
 # The crux of it:
 
-train.py was used to train the model 
+- train.py was used to train the model 
 
-so the kaggle dataset csv file had the correct angles for each workout, and what doing it wrong also looks like
+- So the kaggle dataset csv file had the correct angles for each workout. 
+Here is that dataset: https://www.kaggle.com/datasets/mohamedkhapiry/rehab24-6
 
-used that csv, put it into a RandomForestClassifier ml model and trained it, which takes in angles and tells if workout is correct or not
+- Used that csv, put it into a RandomForestClassifier ml model and trained it, which takes in angles and tells if workout is correct or not
 
-yolo detects the angles and sends it to that model (simple)
+- Yolo detects the angles and sends it to that model (simple)
 
 
 ## Right now what's happening:
@@ -38,6 +39,7 @@ yolo detects the angles and sends it to that model (simple)
 - Recieves it in ``test.py`` through the ws endpoint
 - Converts them into proper frames, gives them to the yolo model, and it tells if its correct or not
 - The angles from each rep is sent to the ``llm_feedback.py`` which gives more feedback
+- Then this data is recieved in the frontend and displayed.
 
 
 

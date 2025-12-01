@@ -53,6 +53,7 @@ export default function ExerciseTracker() {
   // Connection state
   const [isConnected, setIsConnected] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [progressSaved, setProgressSaved] = useState(false);
   
   // Results state
   const [persons, setPersons] = useState<PersonResult[]>([]);
@@ -124,6 +125,17 @@ export default function ExerciseTracker() {
           
         case "exercise_complete":
           console.log(`Person ${data.person_id} completed exercise`);
+          break;
+          
+        case "progress_saved":
+          console.log("Progress saved:", data.message);
+          setProgressSaved(true);
+          // Stop streaming automatically
+          setIsStreaming(false);
+          if (streamIntervalRef.current) {
+            clearInterval(streamIntervalRef.current);
+            streamIntervalRef.current = null;
+          }
           break;
           
         case "session_summary":
@@ -206,6 +218,7 @@ export default function ExerciseTracker() {
     setRepHistory([]);
     setFeedbackMessages([]);
     setFrameCount(0);
+    setProgressSaved(false);
   }, []);
 
   // Initialize on mount
@@ -236,8 +249,20 @@ export default function ExerciseTracker() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
+      {/* Success Message Banner */}
+      {progressSaved && (
+        <div className="sticky top-0 z-[60] bg-gradient-to-r from-green-600 to-green-500 text-white shadow-lg">
+          <div className="max-w-[1920px] mx-auto px-6 py-4">
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-2xl">✅</span>
+              <span className="text-lg font-semibold">Progress saved successfully</span>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Header Bar - Fixed at top */}
-      <div className="sticky top-0 z-50 bg-gray-900/95 backdrop-blur-sm border-b border-gray-700">
+      <div className={`sticky ${progressSaved ? 'top-[60px]' : 'top-0'} z-50 bg-gray-900/95 backdrop-blur-sm border-b border-gray-700`}>
         <div className="max-w-[1920px] mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-6">
@@ -261,7 +286,7 @@ export default function ExerciseTracker() {
             <div className="flex items-center gap-3">
               <button
                 onClick={isStreaming ? stopStreaming : startStreaming}
-                disabled={!isConnected}
+                disabled={!isConnected || progressSaved}
                 className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 ${
                   isStreaming
                     ? "bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/30"
@@ -291,7 +316,7 @@ export default function ExerciseTracker() {
       </div>
 
       {/* Main Content - Side by side layout */}
-      <div className="flex h-[calc(100vh-80px)] max-w-[1920px] mx-auto">
+      <div className={`flex ${progressSaved ? 'h-[calc(100vh-140px)]' : 'h-[calc(100vh-80px)]'} max-w-[1920px] mx-auto`}>
         {/* Main Video Area - Takes 70% width */}
         <div className="flex-1 flex flex-col p-6 overflow-hidden">
           <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6 h-full flex flex-col shadow-2xl">

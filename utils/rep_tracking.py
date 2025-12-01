@@ -148,6 +148,7 @@ async def update_rep_tracking_async(person_id, angle, is_correct, all_angles, se
             # Check if need to switch arms or exercise complete
             if state['rep_count'] >= REPS_PER_ARM:
                 if state['current_arm'] == 'right':
+                    # Switch to left arm after right arm completes
                     state['current_arm'] = 'left'
                     state['rep_count'] = 0
                     state['state'] = 'down'
@@ -160,14 +161,31 @@ async def update_rep_tracking_async(person_id, angle, is_correct, all_angles, se
                     await websocket.send_json(arm_switch_msg)
                     print(f"✅ Person {person_id}: Right arm complete! Switching to left arm.")
                 else:
+                    # After both arms complete (left arm finished): send email and stop exercise
                     state['exercise_complete'] = True
+                    
+                    # Send progress email to doctor
+                    from utils.email_notification import send_progress_email
+                    email_sent = await send_progress_email(session, person_id)
+                    
+                    # Send completion message to frontend
+                    total_reps = sum(state['right_arm_grades'].values()) + sum(state['left_arm_grades'].values())
+                    progress_saved_msg = {
+                        'type': 'progress_saved',
+                        'person_id': person_id,
+                        'message': 'Progress saved successfully',
+                        'email_sent': email_sent,
+                        'total_reps': total_reps
+                    }
+                    await websocket.send_json(progress_saved_msg)
                     
                     exercise_complete_msg = {
                         'type': 'exercise_complete',
                         'person_id': person_id
                     }
                     await websocket.send_json(exercise_complete_msg)
-                    print(f"🎉 Person {person_id}: Exercise complete!")
+                    
+                    print(f"🎉 Person {person_id}: Exercise complete! Both arms finished. Progress email sent.")
                     
                     # Trigger final LLM feedback
                     from utils.feedback import trigger_llm_feedback
